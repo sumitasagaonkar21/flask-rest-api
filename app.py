@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from model import db, BlogPost
+from validations import blog_post_create_schema, blog_post_update_schema
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///blog.db'
@@ -14,11 +15,14 @@ with app.app_context():
 # Create a new blog post
 @app.route('/posts', methods=['POST'])
 def create_post():
-    data = request.get_json()
+    data = request.get_json() or {}
+    errors = blog_post_create_schema.validate(data)
+    if errors:
+        return jsonify({'errors': errors}), 400
     new_post = BlogPost(title=data['title'], content=data['content'])
     db.session.add(new_post)
     db.session.commit()
-    return jsonify({'message': 'Post created successfully!'}), 201
+    return jsonify({'message': 'Post created successfully!', 'id': new_post.id}), 201
 
 # Get all blog posts
 @app.route('/posts', methods=['GET'])
@@ -33,11 +37,16 @@ def get_posts():
 # Update a blog post
 @app.route('/posts/<int:post_id>', methods=['PUT'])
 def update_post(post_id):
-    data = request.get_json()
+    data = request.get_json() or {}
+    errors = blog_post_update_schema.validate(data)
+    if errors:
+        return jsonify({'errors': errors}), 400
     post = BlogPost.query.get(post_id)
     if post:
-        post.title = data['title']
-        post.content = data['content']
+        if 'title' in data:
+            post.title = data['title']
+        if 'content' in data:
+            post.content = data['content']
         db.session.commit()
         return jsonify({'message': 'Post updated successfully!'}), 200
     return jsonify({'message': 'Post not found!'}), 404
